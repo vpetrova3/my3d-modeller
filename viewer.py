@@ -52,6 +52,6 @@ class Viewer(object):
     # ------------------------------------------------------------------
     def main_loop(self):
         glutMainLoop()
-    if __name__ == "__main__":
-        viewer = Viewer()
-        viewer.main_loop()
+if __name__ == "__main__":
+    viewer = Viewer()
+    viewer.main_loop()
