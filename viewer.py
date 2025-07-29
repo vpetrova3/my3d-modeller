@@ -1,3 +1,16 @@
+import numpy
+from numpy.linalg import inv, norm
+from OpenGL.GL import *
+from OpenGL.GLU import *
+from OpenGL.GLUT import *
+
+import color
+from primitive import *
+from interaction import Interaction
+from scene import Scene
+from node import Sphere, Cube, SnowFigure
+
+
 class Viewer(object):
     def __init__(self):
         self.init_interface()
@@ -52,6 +65,74 @@ class Viewer(object):
     # ------------------------------------------------------------------
     def main_loop(self):
         glutMainLoop()
-if __name__ == "__main__":
-    viewer = Viewer()
-    viewer.main_loop()
+
+    # ------------------------------------------------------------------
+    # view helpers
+    # ------------------------------------------------------------------
+    def init_view(self):
+        w, h = glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT)
+        aspect = float(w) / float(h)
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        glViewport(0, 0, w, h)
+        gluPerspective(70, aspect, 0.1, 1000.0)
+        glTranslated(0, 0, -15)
+
+    def render(self):
+        self.init_view()
+
+        glEnable(GL_LIGHTING)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix()
+        glLoadIdentity()
+        tx, ty, tz, _ = self.interaction.translation
+        glTranslated(tx, ty, tz)
+        glMultMatrixf(self.interaction.trackball.matrix)
+
+        mv = numpy.array(glGetFloatv(GL_MODELVIEW_MATRIX))
+        self.modelView        = mv.T
+        self.inverseModelView = inv(mv.T)
+
+        self.scene.render()
+
+        glDisable(GL_LIGHTING)
+        glCallList(G_OBJ_PLANE)
+        glPopMatrix()
+        glFlush()
+
+    # ------------------------------------------------------------------
+    # interaction callbacks
+    # ------------------------------------------------------------------
+    def get_ray(self, x, y):
+        self.init_view()
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+
+        start = numpy.array(gluUnProject(x, y, 0.001))
+        end   = numpy.array(gluUnProject(x, y, 0.999))
+        dir   = (end - start); dir /= norm(dir)
+        return start, dir
+
+    def pick(self, x, y):
+        start, dir = self.get_ray(x, y)
+        self.scene.pick(start, dir, self.modelView)
+
+    def move(self, x, y):
+        start, dir = self.get_ray(x, y)
+        self.scene.move_selected(start, dir, self.inverseModelView)
+
+    def place(self, shape, x, y):
+        start, dir = self.get_ray(x, y)
+        self.scene.place(shape, start, dir, self.inverseModelView)
+
+    def rotate_color(self, forward):
+        self.scene.rotate_selected_color(forward)
+
+    def scale(self, up):
+        self.scene.scale_selected(up)
+
+
+if __name__ == '__main__':
+    Viewer().main_loop()
