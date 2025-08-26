@@ -1,19 +1,29 @@
+"""
+scene.py — The world state + operations on selected objects.
+
+Responsibilities:
+- Keep a flat list of top-level nodes (node_list).
+- Track which node (if any) is selected.
+- Implement picking, moving, scaling, color-rotating, and placing nodes.
+
+Design:
+- Scene is intentionally dumb/simple: it delegates actual drawing to nodes,
+  and higher-level IO concerns to Viewer/Interaction.
+"""
+
 import sys
 import numpy
-from numpy.linalg import inv
 from node import Sphere, Cube, SnowFigure
 
-
 class Scene(object):
+    # distance from camera where new nodes are spawned along the cursor ray
     PLACE_DEPTH = 15.0
 
     def __init__(self):
         self.node_list     = []
         self.selected_node = None
 
-    # ------------------------------------------------------------------
-    # public helpers
-    # ------------------------------------------------------------------
+    # ---------- content management ------------------------------------
     def add_node(self, n):
         self.node_list.append(n)
 
@@ -21,10 +31,12 @@ class Scene(object):
         for n in self.node_list:
             n.render()
 
-    # ------------------------------------------------------------------
-    # selection & manipulation
-    # ------------------------------------------------------------------
+    # ---------- selection & manipulation -------------------------------
     def pick(self, origin, direction, modelview):
+        """
+        Select the closest node whose AABB is hit by the ray (origin+ t*direction).
+        modelview: current MV matrix to be passed into nodes' pick(...) helpers.
+        """
         if self.selected_node:
             self.selected_node.select(False)
             self.selected_node = None
@@ -37,7 +49,7 @@ class Scene(object):
 
         if closest:
             closest.select(True)
-            closest.depth        = mindist
+            closest.depth        = mindist               # store hit distance
             closest.selected_loc = origin + direction * mindist
             self.selected_node   = closest
 
@@ -50,6 +62,13 @@ class Scene(object):
             self.selected_node.scale(up)
 
     def move_selected(self, origin, direction, inv_model):
+        """
+        Drag the selected node so that it stays at the same depth (distance
+        from camera) but under the new mouse ray.
+        - Compute new point at previous hit depth along the new ray.
+        - Convert the camera-space delta to world-space via inv(ModelView).
+        - Apply as a translation on the node.
+        """
         if not self.selected_node:
             return
         node  = self.selected_node
@@ -63,6 +82,10 @@ class Scene(object):
         node.selected_loc = new
 
     def place(self, shape, origin, direction, inv_model):
+        """
+        Spawn a new node at a fixed camera-space depth along the cursor ray.
+        Convert that camera-space position to world-space, then translate node.
+        """
         new = {'sphere': Sphere, 'cube': Cube, 'figure': SnowFigure}[shape]()
         self.add_node(new)
 
